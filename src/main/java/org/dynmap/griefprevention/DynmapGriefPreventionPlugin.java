@@ -17,15 +17,15 @@ public class DynmapGriefPreventionPlugin extends JavaPlugin {
     public static DynmapAPI DYNMAP_API;
     public static MarkerAPI MARKER_API;
     public static MarkerSet MARKER_SET;
-    public static GriefPrevention GP;
+    public static GriefPrevention GRIEF_PREVENTION;
     public static Settings SETTINGS;
     public static Map<String, AreaMarker> MAP_MARKER = new HashMap<>();
 
     @Override
     public void onEnable() {
+        INSTANCE = this;
         Log.Info("initializing");
         saveDefaultConfig();
-        INSTANCE = this;
         SETTINGS = new Settings(getConfig());
         //
         loadDynmapApi();
@@ -59,7 +59,7 @@ public class DynmapGriefPreventionPlugin extends JavaPlugin {
     private void loadGriefPrevention() {
         final Plugin gp = getServer().getPluginManager().getPlugin("GriefPrevention");
         if (gp instanceof GriefPrevention && gp.isEnabled()) {
-            GP = (GriefPrevention) gp;
+            GRIEF_PREVENTION = (GriefPrevention) gp;
             return;
         }
     }

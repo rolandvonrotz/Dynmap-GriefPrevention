@@ -14,7 +14,8 @@ public class Log {
     }
 
     private static void log(final Level level, final String msg) {
-        Bukkit.getLogger().log(level, msg);
+        final String logMessage = String.format("[%s] %s", DynmapGriefPreventionPlugin.INSTANCE.getName(), msg);
+        Bukkit.getLogger().log(level, logMessage);
     }
 
 }

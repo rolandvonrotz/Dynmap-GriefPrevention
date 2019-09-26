@@ -14,15 +14,12 @@ import static java.util.stream.Collectors.joining;
 public class GriefPreventionUpdate implements Runnable {
 
     public void run() {
-        updateClaims();
-    }
-
-    private void updateClaims() {
+        // Delete Marker & clear them from the HashMap
         DynmapGriefPreventionPlugin.MAP_MARKER.values().forEach(AreaMarker::deleteMarker);
         DynmapGriefPreventionPlugin.MAP_MARKER.clear();
-
-        final Collection<Claim> claims = DynmapGriefPreventionPlugin.GP.dataStore.getClaims();
-
+        // Get Claims from GriefPrevention
+        final Collection<Claim> claims = DynmapGriefPreventionPlugin.GRIEF_PREVENTION.dataStore.getClaims();
+        // Recreate Marker & HashMap
         DynmapGriefPreventionPlugin.MAP_MARKER = claims.stream()
                 .flatMap(c -> Stream.concat(Stream.of(c), c.children.stream()))
                 .filter(this::isVisible)
@@ -31,17 +28,13 @@ public class GriefPreventionUpdate implements Runnable {
     }
 
     private boolean isVisible(final Claim claim) {
-        if (isHidden(claim)) {
+        if (match(DynmapGriefPreventionPlugin.SETTINGS.getHiddenRegions(), claim)) {
             return false;
         }
         if (DynmapGriefPreventionPlugin.SETTINGS.getVisibleRegions().size() == 0) {
             return true;
         }
         return match(DynmapGriefPreventionPlugin.SETTINGS.getVisibleRegions(), claim);
-    }
-
-    private boolean isHidden(final Claim claim) {
-        return match(DynmapGriefPreventionPlugin.SETTINGS.getHiddenRegions(), claim);
     }
 
     private boolean match(final Set<String> regions, final Claim claim) {
@@ -54,75 +47,70 @@ public class GriefPreventionUpdate implements Runnable {
     }
 
     private Map.Entry<String, AreaMarker> handleClaim(final Claim claim) {
-        double[] x = null;
-        double[] z = null;
-        final Location l0 = claim.getLesserBoundaryCorner();
-        final Location l1 = claim.getGreaterBoundaryCorner();
-        final String wname = l0.getWorld().getName();
+        final String markerId = "GP_" + Long.toHexString(claim.getID());
+        final Location locationOne = claim.getLesserBoundaryCorner();
+        final Location locationTwo = claim.getGreaterBoundaryCorner();
+        final double[] x = createCoordListX(locationOne, locationTwo);
+        final double[] z = createCoordListZ(locationOne, locationTwo);
         final String owner = claim.isAdminClaim() ? Config.ADMIN_ID : claim.getOwnerName();
-        /* Handle areas */
-        /* Make outline */
-        x = new double[4];
-        z = new double[4];
-        x[0] = l0.getX();
-        z[0] = l0.getZ();
-        x[1] = l0.getX();
-        z[1] = l1.getZ() + 1.0;
-        x[2] = l1.getX() + 1.0;
-        z[2] = l1.getZ() + 1.0;
-        x[3] = l1.getX() + 1.0;
-        z[3] = l0.getZ();
-        final Long id = claim.getID();
-        final String markerid = "GP_" + Long.toHexString(id);
-        AreaMarker marker = DynmapGriefPreventionPlugin.MAP_MARKER.remove(markerid); /* Existing area? */
-        if (marker == null) {
-            marker = DynmapGriefPreventionPlugin.MARKER_SET.createAreaMarker(markerid, owner, false, wname, x, z, false);
-        } else {
-            marker.setCornerLocations(x, z); /* Replace corner locations */
-            marker.setLabel(owner);   /* Update label */
+        final AreaMarker marker = DynmapGriefPreventionPlugin.MARKER_SET.createAreaMarker(markerId, owner, false, locationOne.getWorld().getName(), x, z, false);
+        // If 3D?
+        if (DynmapGriefPreventionPlugin.SETTINGS.getUse3dRegions()) {
+            marker.setRangeY(locationTwo.getY() + 1.0, locationOne.getY());
         }
-        if (DynmapGriefPreventionPlugin.SETTINGS.getUse3dRegions()) { /* If 3D? */
-            marker.setRangeY(l1.getY() + 1.0, l0.getY());
-        }
-        /* Set line and fill properties */
-        addStyle(owner, wname, marker, claim);
-
-        /* Build popup */
-        final String desc = formatInfoWindow(claim, marker);
-
-        marker.setDescription(desc); /* Set popup */
-
-        return new AbstractMap.SimpleEntry<>(markerid, marker);
+        // Set line and fill properties
+        addStyle(owner, marker);
+        //Build & Set popup
+        marker.setDescription(formatInfoWindow(claim, marker));
+        return new AbstractMap.SimpleEntry<>(markerId, marker);
     }
 
-    private void addStyle(final String owner, final String worldid, final AreaMarker m, final Claim claim) {
+    private double[] createCoordListX(final Location locationOne, final Location locationTwo) {
+        final double[] coordList = new double[4];
+        coordList[0] = locationOne.getX();
+        coordList[1] = locationOne.getX();
+        coordList[2] = locationTwo.getX() + 1.0;
+        coordList[3] = locationTwo.getX() + 1.0;
+        return coordList;
+    }
+
+    private double[] createCoordListZ(final Location locationOne, final Location locationTwo) {
+        final double[] coordList = new double[4];
+        coordList[0] = locationOne.getZ();
+        coordList[1] = locationTwo.getZ() + 1.0;
+        coordList[2] = locationTwo.getZ() + 1.0;
+        coordList[3] = locationOne.getZ();
+        return coordList;
+    }
+
+    private void addStyle(final String owner, final AreaMarker marker) {
         final Settings.AreaStyle style = DynmapGriefPreventionPlugin.SETTINGS.getStyle(owner);
-        int sc = 0xFF0000;
-        int fc = 0xFF0000;
+        int strokeColor = 0xFF0000;
+        int fillColor = 0xFF0000;
         try {
-            sc = Integer.parseInt(style.strokeColor.substring(1), 16);
-            fc = Integer.parseInt(style.fillColor.substring(1), 16);
+            strokeColor = Integer.parseInt(style.strokeColor.substring(1), 16);
+            fillColor = Integer.parseInt(style.fillColor.substring(1), 16);
         } catch (final NumberFormatException nfx) {
+            Log.Error(nfx.getMessage());
         }
-        m.setLineStyle(style.strokeWeight, style.strokeOpacity, sc);
-        m.setFillStyle(style.fillOpacity, fc);
+        marker.setLineStyle(style.strokeWeight, style.strokeOpacity, strokeColor);
+        marker.setFillStyle(style.fillOpacity, fillColor);
         if (style.label != null) {
-            m.setLabel(style.label);
+            marker.setLabel(style.label);
         }
     }
 
     private String formatInfoWindow(final Claim claim, final AreaMarker m) {
-        String v = "<div class=\"regioninfo\">" + DynmapGriefPreventionPlugin.SETTINGS.getInfoWindow() + "</div>";
-        if (claim.isAdminClaim()) {
-            v = "<div class=\"regioninfo\">" + DynmapGriefPreventionPlugin.SETTINGS.getAdminInfoWindow() + "</div>";
-        }
-
+        final String popup = String.format("<div class=\"regioninfo\">%s</div>",
+                claim.isAdminClaim()
+                        ? DynmapGriefPreventionPlugin.SETTINGS.getAdminInfoWindow()
+                        : DynmapGriefPreventionPlugin.SETTINGS.getInfoWindow());
         final ArrayList<String> builders = new ArrayList<>();
         final ArrayList<String> containers = new ArrayList<>();
         final ArrayList<String> accessors = new ArrayList<>();
         final ArrayList<String> managers = new ArrayList<>();
         claim.getPermissions(builders, containers, accessors, managers);
-        return v.replace("%owner%", claim.isAdminClaim() ? Config.ADMIN_ID : claim.getOwnerName())
+        return popup.replace("%owner%", claim.isAdminClaim() ? Config.ADMIN_ID : claim.getOwnerName())
                 .replace("%area%", Integer.toString(claim.getArea()))
                 /* Build builders list */
                 .replace("%builders%", builders.stream().map(this::getPlayerName).collect(joining(", ")))
