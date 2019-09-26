@@ -1,6 +1,7 @@
 package org.dynmap.griefprevention;
 
 import me.ryanhamshire.GriefPrevention.Claim;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.dynmap.markers.AreaMarker;
 
@@ -18,6 +19,7 @@ public class GriefPreventionUpdate implements Runnable {
 
     private void updateClaims() {
         DynmapGriefPreventionPlugin.MAP_MARKER.values().forEach(AreaMarker::deleteMarker);
+        DynmapGriefPreventionPlugin.MAP_MARKER.clear();
 
         final Collection<Claim> claims = DynmapGriefPreventionPlugin.GP.dataStore.getClaims();
 
@@ -123,13 +125,16 @@ public class GriefPreventionUpdate implements Runnable {
         return v.replace("%owner%", claim.isAdminClaim() ? Config.ADMIN_ID : claim.getOwnerName())
                 .replace("%area%", Integer.toString(claim.getArea()))
                 /* Build builders list */
-                .replace("%builders%", builders.stream().collect(joining(", ")))
+                .replace("%builders%", builders.stream().map(this::getPlayerName).collect(joining(", ")))
                 /* Build containers list */
-                .replace("%containers%", containers.stream().collect(joining(", ")))
+                .replace("%containers%", containers.stream().map(this::getPlayerName).collect(joining(", ")))
                 /* Build accessors list */
-                .replace("%accessors%", accessors.stream().collect(joining(", ")))
+                .replace("%accessors%", accessors.stream().map(this::getPlayerName).collect(joining(", ")))
                 /* Build managers list */
-                .replace("%managers%", managers.stream().collect(joining(", ")));
+                .replace("%managers%", managers.stream().map(this::getPlayerName).collect(joining(", ")));
     }
 
+    private String getPlayerName(final String uuid) {
+        return Bukkit.getOfflinePlayer(UUID.fromString(uuid)).getName();
+    }
 }
